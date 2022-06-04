@@ -67,7 +67,7 @@ Refrences :
 
 - There are times when a class cannot perform correctly if there's more than one instance of it. The common case is when the class interacts with an external system that maintains its own global state.
 - Consider a class that wraps an underlying file system API. Because file operations can take a while to complete, our class performs operations asynchronously. This means multiple operations can be running concurrently, so they must be coordinated with each other. If we start one call to create a file and another one to delete that same file, our wrapper needs to be aware of both to make sure they don’t interfere with each other.
-- To do this, a call into our wrapper needs to have access to every previous operation. If users could freely create instances of our class, one instance would have no way of knowing about operations that other instances started. Enter the singleton. It provides a way for a class to ensure that there is only a single instance of the class.
+- To do this, a call into our wrapper needs to have access to every previous operation. If users could freely create instances of our class, one instance would have no way of knowing about operations that other instances started. Enter the singleton. It provides a way for a class to ensure that there is only a single instance of the class (during compile time & run time).
 
 #### Providing a global point of access
 
@@ -76,51 +76,10 @@ Refrences :
 
 ### 2.2 Why we use it
 
-//CODE 1
- public class FileSystem
-{
-    //A static variable which holds a reference to the single created instance
-    private static FileSystem instance = null;
-
-
-    //A public static means of getting the reference to the single created instance, creating one if necessary
-    //Lazy Initialization
-    public static FileSystem Instance
-    {
-        get
-        {
-            if (instance == null)
-            {
-                instance = new FileSystem();
-            }
-
-            return instance;
-        }
-    }
-
-
-
-    //A single constructor, which is private and parameterless (singletons are not allowed to have parameters)
-    //This prevents other classes from instantiating it and it also prevents subclassing (which both are violating the pattern)
-    //But some argue that you should be able to inherit from singletons...
-    private FileSystem()
-    {
-    }
-
-
-
-    //For testing
-    public void TestSingleton()
-    {
-        Debug.Log("Hello this is Singleton");
-    }
-}
-
-
 - This file system class will ensure there's only one instance. Also we can access it from anywhere without passing it around.
 
     1. doesn't create the instance if no one uses it : save memory
-    2. initialized at run time. common alternative to singleton is a static class. But static class get auto initialized so sometimes they will not have access to data loaded at later time. 
+    2. initialized at run time. common alternative to singleton is a static class. But static class get auto initialized. so sometimes they will not have access to data loaded at later time. 
     3. it allows subclassing
 
 ### 2.3 Why we regret using it
@@ -137,98 +96,50 @@ Refrences :
 - Single isntace is useful. also global access is convenient at first. but will create problem at later stage when you want to make a modification.
 - Also in games, lazy initialization is not good as initialiation can take time. (allocating memeory, loading resources).it may delay the desired output.
 - So because of these reasons, in games we don't rely on lazy initialization. 
-- That solves the lazy initialization problem, but at the expense of discarding several singleton features that do make it better than a raw global variable. With a static instance, we can no longer use polymorphism, and the class must be constructible at static initialization time. Nor can we free the memory that the instance is using when not needed.
-- Instead of creating a singleton, what we really have here is a simple static class. That isn’t necessarily a bad thing, but if a static class is all you need, why not get rid of the instance() method entirely and use static functions instead? 
+- That solves the lazy initialization problem, but at the expense of discarding several singleton features that do make it better than a raw global variable. With a static instance, we can no longer use polymorphism, and the class must be constructible at static initialization time. Nor can we free the memory that the instance is using when not needed. 
 
-### Unity Implementation
+### 2.4 What We Can Do Instead
 
-public class GameManger : MonoBehaviour
-    {
-        //A static variable which holds a reference to the single created instance
-        private static GameManger instance = null;
+### See if you need the class at all 
 
+- Many of the singleton classes I see in games are “managers” — those nebulous classes that exist just to babysit other objects. I’ve seen codebases where it seems like every class has a manager.
+- While caretaker classes are sometimes useful, often they just reflect unfamiliarity with OOP.
+-  Poorly designed singletons are often “helpers” that add functionality to another class. If you can, just move all of that behavior into the class it helps. After all, OOP is about letting objects take care of themselves.
 
+### To provide convenient access to an instance
 
+- Convenient access is the main reason we reach for singletons. They make it easy to get our hands on an object we need to use in a lot of different places. That ease comes at a cost, though — it becomes equally easy to get our hands on the object in places where we don’t want it being used.
+- The general rule is that we want variables to be as narrowly scoped as possible while still getting the job done. The smaller the scope an object has, the fewer places we need to keep in our head while we’re working with it.
+- Try pass it as a method paramater.
+- Try get it from the base class.
+- Get it from something already global. The goal of removing all global state is admirable, but rarely practical. Most codebases will still have a couple of globally available objects, such as a single `Game` or `World` object representing the entire game state. The downside with this, of course, is that more code ends up coupled to `Game` itself. If a class just needs to play sound, our example still requires it to know about the world in order to get to the audio player.
 
-        //A public static means of getting the reference to the single created instance, creating one if necessary
-        public static GameManger Instance
-        {
-            get
-            {
-                if (instance == null)
-                {
-                    // Find singleton of this type in the scene
-                    var instance = GameObject.FindObjectOfType<SingletonUnity>();
+### 2.5 What’s Left for Singleton
+- I’ve never used the full Gang of Four implementation in a game. To ensure single instantiation, I usually simply use a static class. If that doesn’t work, I’ll use a static flag to check at runtime that only one instance of the class is constructed.
 
-                    // If there is no singleton object in the scene, we have to add one
-                    if (instance == null)
-                    {
-                        GameObject obj = new GameObject("Game Manger");
-                        instance = obj.AddComponent<GameManger>();
+### 2.6 Extra : (Things I found on google)
 
 
-                        // The singleton object shouldn't be destroyed when we switch between scenes
-                        DontDestroyOnLoad(obj);
-                    }
-                }
-
-                return instance;
-            }
-        }
-
-        void Awake()
-        {
-            if (instance == null)
-            {
-                instance = this;
-
-                // The singleton object shouldn't be destroyed when we switch between scenes
-                DontDestroyOnLoad(this.gameObject);
-            }
-            // because we inherit from MonoBehaviour whem might have accidentally added several of them to the scene,
-            // which will cause trouble, so we have to make sure we have just one!
-            else
-            {
-                Destroy(gameObject);
-            }
-        }
-
-
-
-
-        //For testing
-        public void TestSingleton()
-        {
-            Debug.Log($"Hello this is Singleton");
-        }
-
-
-
-### 2.4 Extra : (Things I found on google)
-
-#### Should You use singleton in Unity ?
-
-- game development is not typical business app development, singletons provide an excellent facility for manager classes that suit Unity's component based model. You obviously don't want to go overboard with them, but they replace the need for using Find functions, which are slow and best avoided, especially if you plan on accessing the manager a lot.
+- game development is not typical business app development, singletons provide an excellent facility for manager classes that suit Unity's component based model. You obviously don't want to go overboard with them.
 -It depends on your implementation. For Managers, or things you know for a fact should only be instantiated once, should use a Singleton Paradigm. The debate about Singletons among programmers, is that those that do not know how or when to use them tend to abuse them and break software design structures. Use them, but know how and when to use them. The best way, is to ask yourself, "Should this script have multiple instances, or should there just be one?".
 - The answer is "it depends".For simple projects with small teams or individuals singletons are great. They allow you to access specific game manager type scripts without having to worry about passing around references. They can make your code simpler and cleaner. I note that this is for game manager type objects only. Anything that belongs to a specific game entity, such as player health, should not be a singleton. Singletons are reserved for things that are truly global in scope (like a Facebook manager), not just things that only exist once.For large projects with big team singletons are bad. They create all sorts of dependencies (Dependencies are bad). They also create hard to diagnose bugs, because anything can get into your singleton object and play around with it. You are far better off investigating patterns like Service Locator or Dependency Injection.
 - for small projects, singletons seem to work well.
 - Designing for scalability from the first will save a lot of time later. If you're working on a small game, obviously a singleton works just fine, but on larger programs you don't want to have to go back and rewrite code constantly. You want to plan for flexibility and scalability from the first.
 - Problem with the singleton is not the single instance. It's really about the global access. Anyone can access it from anywhere. It's convinient at first but as the code grows it can become a huge problem.
 - Singletons glues subsystem together. Like you have a store screen and you have a player inventory. A lot of people might end up moving the data from the gui screen to the player's inventory using a singleton. That's the kind of thing that might make the shop screen impossible to test in isolation.
-- When I feel like I absolutely have to use the Singleton pattern, I do what Unity does with the Camera class. Instead of having only one instance, I have a static member called main. You can create as many instances of that class (lets call it Foo), but you can also have a "singleton" version by using main.
-
-You can even have a special editor for your class which has a check box labelled "This is the main instance" and ticking it sets a hidden flag to true and sets it to false for all other scene objects of that type. In the Awake() method, you can have:
+- When I feel like I absolutely have to use the Singleton pattern, I do what Unity does with the Camera class. Instead of having only one instance, I have a static member called main. You can create as many instances of that class (lets call it Foo), but you can also have a "singleton" version by using main.You can even have a special editor for your class which has a check box labelled "This is the main instance" and ticking it sets a hidden flag to true and sets it to false for all other scene objects of that type. In the Awake() method, you can have:
 if (_mainFlag == true) { main = this; }
 - If it's something you only use on one scene... don't use a static class (necessarily) because that memory never gets freed up. Other than that Singletons in general are fine. They are hard to test and they sometimes make it hard to know where an error originated from but they're not evil.
 - Singletons are great! But only as long as they are used correctly. From what I can tell, most people use them when they need easy access to a class from anywhere in their code. Just make it a singleton, and you can call MyManager.Instance from anywhere to get a reference. This is not a good reason to use a singleton, and if this is your only purpose you should use a different approach.
-- but perhaps not the best example, is the log writer. You only have one log file, so it makes sense that all interaction with the log goes through a singleton class.
-- f you're the solo programmer, anything is fine. But in general I have at least 5 in a project. Maybe more if more managers or such are needed for something. Singleton is a great pattern for Unity work.
-- Apparently a lot of people don't finish games and would rather spend time with architecture. Did you know Unity uses the singleton pattern with it's own API frequently?It works fine.
+- if you're the solo programmer, anything is fine. But in general I have at least 5 in a project. Maybe more if more managers or such are needed for something. Singleton is a great pattern for Unity work.
+- Apparently a lot of people don't finish games and would rather spend time with architecture. Did you know Unity uses the singleton pattern with it's own API frequently? It works fine.
 - Using singletons itself is not a problem, using them when it's not necessary could be one.If some object is conceptually required to be unique in its existence, then actually prohibiting multiple instantiation of the class by using singleton pattern could be even considered as a best practice.
-- Singletons are great! But only as long as they are used correctly. From what I can tell, most people use them when they need easy access to a class from anywhere in their code. Just make it a singleton, and you can call MyManager.Instance from anywhere to get a reference. This is not a good reason to use a singleton, and if this is your only purpose you should use a different approach.
 - However if what you want is to make sure there is only one instance of a class at any time, then the singleton is the correct solution. For example if you have some limited system resource, it makes sense to have just one instance of a class for interacting with it. The most common, but perhaps not the best example, is the log writer. You only have one log file, so it makes sense that all interaction with the log goes through a singleton class.
 - If you only want easy access to an object from anywhere in your code, you are better off using some kind of inversion of control. This is your Service Locator or Dependency Injection. You don't actually need to use any of these to have inversion of control, simply passing the object as a parameter could also be considered inversion of control.
 - Games often are tightly coupled systems by nature. So jumping through hoops to pretend they aren't can lead to all sorts of silliness.
+- Singleton cause code to be tightly coupled (that's a problem, but if designed properly, you can avoid tightly coupling code. Because a singleton has an actual instance, you can still treat it as an instance, and pass it around by reference. Unlike static classes)
+-  Singleton avoid Single Responsibility Principle (this argument is based on a singleton having to create an instance of itself... which is sort of a stretch IMO. And also can be mitigated by having a factory. If the singleton exists only to enforce a single instance, yet you pass by reference, you can then use a factory to create the instance for passing around, and the factory also can be how which sub class is selected.)
+
 
 Refrences : 
 
@@ -242,51 +153,4 @@ Refrences :
 - https://videlais.com/2021/02/20/singleton-global-instance-pattern-in-unity/
 
 
-1) cause code to be tightly coupled
-2) can't be sub-classed
-3) avoid Single Responsibility Principle
-4) hide dependencies
-5) difficult to change later, for example starting with singleton for database connection, but then needing multiple causes a lot of gutting of code and logic.
 
-1) that's a problem, but if designed properly, you can avoid tightly coupling code. Because a singleton has an actual instance, you can still treat it as an instance, and pass it around by reference. Unlike static classes.
-
-2) yes it can be sub-classed, that's its benefit over a static class.
-
-3) this argument is based on a singleton having to create an instance of itself... which is sort of a stretch IMO. And also can be mitigated by having a factory. Which leads back to 1, and 2. If the singleton exists only to enforce a single instance, yet you pass by reference, you can then use a factory to create the instance for passing around, and the factory also can be how which sub class is selected.
-
-4) This really is just repeating number 1.
-
-5) very true, remedied partially again by my answer to 1
-
-
-#### Scriptable object variables vs singletons
-
-
-
-
-
-
-- Main player vs 5 players 
-
-#### Master singletons (service locators)
-- This approach, while it uses a singleton, is technically a different design pattern called the Service Locator, which uses a gateway singleton to manage access to multiple other game systems.
-- While this doesn’t prevent the problems that can be caused by needing to change your code later, it does add a layer of abstraction between your singleton systems and the objects that might want to access them.
-
-
-public class Singleton : MonoBehaviour
-{
-    public static Singleton Instance { get; private set; }
-    public AudioManager AudioManager { get; private set; }
-    public UIManager UIManager { get; private set; }
-    private void Awake()
-    {
-        if (Instance != null && Instance != this)
-        {
-            Destroy(this);
-            return;
-        }
-        Instance = this;
-        AudioManager = GetComponentInChildren<AudioManager>();
-        UIManager = GetComponentInChildren<UIManager>();
-    }
-}
